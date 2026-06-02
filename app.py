@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, send_file
 import os
 import pdfplumber
@@ -6,7 +7,6 @@ import re
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
-# ✅ Pie chart imports (NO matplotlib needed)
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.piecharts import Pie
 
@@ -19,13 +19,15 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+# ---------------- SKILLS ----------------
 SKILLS = [
-    "python", "java", "c++", "html", "css", "javascript",
-    "sql", "mysql", "flask", "git", "react", "nodejs",
-    "machine learning", "data analysis"
+    "python", "java", "c", "c++", "html", "css", "javascript",
+    "sql", "mysql", "flask", "django", "react", "nodejs",
+    "machine learning", "deep learning", "data analysis",
+    "numpy", "pandas", "git", "github", "api", "rest api"
 ]
 
-# ---------------- PDF TEXT EXTRACTION ----------------
+# ---------------- PDF EXTRACTION ----------------
 def extract_text(pdf_path):
     text = ""
     with pdfplumber.open(pdf_path) as pdf:
@@ -35,10 +37,23 @@ def extract_text(pdf_path):
                 text += page_text + "\n"
     return text
 
-# ---------------- SKILL DETECTION ----------------
+# ---------------- SMART SKILL DETECTION ----------------
 def find_skills(text):
     text = text.lower()
-    return [skill for skill in SKILLS if skill in text]
+    extracted = set()
+
+    for skill in SKILLS:
+        if skill in text:
+            extracted.add(skill)
+
+    words = text.split()
+    for word in words:
+        word = word.strip(".,()[]{}:;")
+
+        if word in SKILLS:
+            extracted.add(word)
+
+    return list(extracted)
 
 # ---------------- BASIC EXTRACTIONS ----------------
 def extract_email(text):
@@ -53,7 +68,7 @@ def extract_name(text):
     lines = text.split("\n")
     for line in lines:
         line = line.strip()
-        if line and "@" not in line:
+        if line and "@" not in line and len(line) > 2:
             return line
     return "Not Found"
 
@@ -73,7 +88,52 @@ def extract_section(text, section_name):
 
     return " ".join(section_content)
 
-# ---------------- PIE CHART FUNCTION ----------------
+# ---------------- CHATGPT STYLE SUGGESTIONS ----------------
+def generate_ai_suggestions(matched, missing, resume_text):
+    suggestions = []
+
+    if len(missing) > 0:
+        suggestions.append("Add missing skills: " + ", ".join(missing))
+
+    if len(matched) < 3:
+        suggestions.append("Your resume has low skill match. Add more technical keywords.")
+
+    if "project" not in resume_text.lower():
+        suggestions.append("Add a Projects section with real-world applications.")
+
+    if "experience" not in resume_text.lower():
+        suggestions.append("Include Internship or Work Experience section.")
+
+    suggestions.append("Use strong action verbs like 'developed', 'built', 'designed'.")
+
+    return suggestions
+
+# ---------------- SCORE EXPLANATION (NEW FEATURE) ----------------
+def explain_score(score, matched, missing, resume_text):
+    reasons = []
+
+    if score < 40:
+        reasons.append("Low ATS score due to poor skill matching with job description.")
+    elif score < 70:
+        reasons.append("Moderate ATS score. Some required skills are missing.")
+    else:
+        reasons.append("Good ATS score. Resume matches most job requirements.")
+
+    if len(missing) > 0:
+        reasons.append("Missing important skills: " + ", ".join(missing))
+
+    if len(matched) < 3:
+        reasons.append("Very few matching technical skills found.")
+
+    if "project" not in resume_text.lower():
+        reasons.append("No Projects section detected.")
+
+    if "experience" not in resume_text.lower():
+        reasons.append("No Internship/Experience section found.")
+
+    return reasons
+
+# ---------------- PIE CHART ----------------
 def create_pie_chart(matched_count, missing_count):
     drawing = Drawing(200, 200)
 
@@ -92,7 +152,7 @@ def create_pie_chart(matched_count, missing_count):
     return drawing
 
 # ---------------- PDF REPORT ----------------
-def generate_pdf(name, email, phone, score, matched, missing, suggestions):
+def generate_pdf(name, email, phone, score, matched, missing, suggestions, explanation):
 
     file_path = "ats_report.pdf"
     doc = SimpleDocTemplate(file_path)
@@ -111,24 +171,21 @@ def generate_pdf(name, email, phone, score, matched, missing, suggestions):
     content.append(Paragraph(f"ATS Score: {score}%", styles["Heading2"]))
     content.append(Spacer(1, 12))
 
-    # ✅ PIE CHART ADDED HERE
     content.append(Paragraph("Skill Match Overview", styles["Heading2"]))
     content.append(create_pie_chart(len(matched), len(missing)))
     content.append(Spacer(1, 12))
 
-    content.append(Paragraph(f"Matched Skills: {', '.join(matched)}", styles["BodyText"]))
-    content.append(Spacer(1, 12))
-
-    content.append(Paragraph(f"Missing Skills: {', '.join(missing)}", styles["BodyText"]))
-    content.append(Spacer(1, 12))
-
-    content.append(Paragraph("Suggestions:", styles["Heading2"]))
-
+    content.append(Paragraph("AI Suggestions:", styles["Heading2"]))
     for s in suggestions:
         content.append(Paragraph(f"- {s}", styles["BodyText"]))
 
-    doc.build(content)
+    content.append(Spacer(1, 12))
 
+    content.append(Paragraph("Why Your Score is This (Explanation):", styles["Heading2"]))
+    for r in explanation:
+        content.append(Paragraph(f"- {r}", styles["BodyText"]))
+
+    doc.build(content)
     return file_path
 
 # ---------------- MAIN ROUTE ----------------
@@ -138,10 +195,11 @@ def home():
     filename = None
     resume_text = ""
 
-    score = None
+    score = 0
     matched = []
     missing = []
     suggestions = []
+    explanation = []
 
     name = ""
     email = ""
@@ -183,10 +241,9 @@ def home():
 
             score = round((len(matched) / len(jd_skills)) * 100) if jd_skills else 0
 
-            for skill in missing:
-                suggestions.append(f"Consider adding {skill} to your resume.")
+            suggestions = generate_ai_suggestions(matched, missing, resume_text)
+            explanation = explain_score(score, matched, missing, resume_text)
 
-            # save for PDF download
             app.config["last_report"] = {
                 "name": name,
                 "email": email,
@@ -194,7 +251,8 @@ def home():
                 "score": score,
                 "matched": matched,
                 "missing": missing,
-                "suggestions": suggestions
+                "suggestions": suggestions,
+                "explanation": explanation
             }
 
     return render_template(
@@ -211,10 +269,11 @@ def home():
         education=education,
         skills_section=skills_section,
         projects=projects,
-        certifications=certifications
+        certifications=certifications,
+        explanation=explanation
     )
 
-# ---------------- DOWNLOAD ROUTE ----------------
+# ---------------- DOWNLOAD ----------------
 @app.route("/download")
 def download():
 
@@ -230,7 +289,8 @@ def download():
         data["score"],
         data["matched"],
         data["missing"],
-        data["suggestions"]
+        data["suggestions"],
+        data["explanation"]
     )
 
     return send_file(file_path, as_attachment=True)

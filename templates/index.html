@@ -1,150 +1,209 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>AI Resume Analyzer</title>
+    <meta charset="UTF-8">
+    <title>AI Resume Analyzer Dashboard</title>
 
-    <!-- Bootstrap CDN -->
+    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <!-- Chart.js CDN -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        body{
-            background:#f4f6f9;
+        body {
+            background: #f4f6f9;
         }
 
-        .header{
-            text-align:center;
-            padding:20px;
-            font-weight:bold;
+        .top-bar {
+            background: linear-gradient(135deg, #4a90e2, #6a5acd);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 20px;
         }
 
-        .score-box{
-            font-size:30px;
-            font-weight:bold;
-            color:green;
+        .card-box {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .card{
-            border-radius:12px;
-            box-shadow:0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom:15px;
+        .score {
+            font-size: 42px;
+            font-weight: bold;
+            color: #28a745;
         }
 
-        .resume-box{
-            white-space:pre-wrap;
-            background:#f8f9fa;
-            padding:10px;
-            border-radius:8px;
-            border:1px solid #ddd;
+        .upload-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
         }
 
-        .progress-bar{
-            font-weight:bold;
+        .list-box li {
+            padding: 4px 0;
+        }
+
+        .resume-text {
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
         }
     </style>
 </head>
 
 <body>
 
-<div class="container">
+<div class="container mt-4">
 
-    <h1 class="header">🤖 AI Resume Analyzer & ATS System</h1>
-
-    <!-- INPUT FORM -->
-    <div class="card p-4">
-
-        <form method="POST" enctype="multipart/form-data">
-
-            <div class="mb-3">
-                <label class="form-label"><b>Upload Resume (PDF)</b></label>
-                <input type="file" class="form-control" name="resume" required>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label"><b>Paste Job Description</b></label>
-                <textarea class="form-control" name="job_desc" rows="6" required></textarea>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">
-                🔍 Analyze Resume
-            </button>
-
-        </form>
-
+    <!-- HEADER -->
+    <div class="top-bar">
+        <h2>🤖 AI Resume Analyzer</h2>
+        <p>ATS Score • Skill Analysis • AI Insights</p>
     </div>
 
-    <!-- FILE NAME -->
-    {% if filename %}
-    <div class="card p-3">
-        <h5>📁 Uploaded File</h5>
-        <p>{{ filename }}</p>
-    </div>
-    {% endif %}
+    <div class="row">
 
-    <!-- ATS SCORE -->
-    {% if score is not none %}
-    <div class="card p-4 text-center">
+        <!-- LEFT: UPLOAD -->
+        <div class="col-md-4">
 
-        <h3>📊 ATS Score</h3>
+            <div class="upload-section card-box">
 
-        <div class="score-box">{{ score }}%</div>
+                <h5>📤 Upload Resume</h5>
 
-        <div class="progress mt-3">
-            <div class="progress-bar bg-success"
-                 role="progressbar"
-                 style="width: {{ score }}%;">
-                {{ score }}%
+                <form method="POST" enctype="multipart/form-data">
+
+                    <input type="file" name="resume" class="form-control mb-2" required>
+
+                    <textarea name="job_desc" class="form-control mb-2" rows="6"
+                              placeholder="Paste Job Description..." required></textarea>
+
+                    <button class="btn btn-primary w-100">
+                        🔍 Analyze Resume
+                    </button>
+
+                </form>
+
             </div>
+
         </div>
 
-        <br>
+        <!-- RIGHT: RESULTS -->
+        <div class="col-md-8">
 
-        <a href="/download" class="btn btn-success">
-            📄 Download Report
-        </a>
+            {% if score is not none %}
 
+            <!-- SCORE -->
+            <div class="card card-box p-3 text-center mb-3">
+                <h5>📊 ATS Score</h5>
+                <div class="score">{{ score }}%</div>
+
+                <div class="progress mt-3">
+                    <div class="progress-bar bg-success"
+                         style="width: {{ score }}%;">
+                        {{ score }}%
+                    </div>
+                </div>
+
+                <a href="/download" class="btn btn-success mt-3">
+                    📄 Download Report
+                </a>
+            </div>
+
+            <!-- CHART -->
+            <div class="card card-box p-3 mb-3">
+                <h5>📊 Skill Match Chart</h5>
+                <canvas id="atsChart"></canvas>
+            </div>
+
+            <script>
+                const ctx = document.getElementById('atsChart').getContext('2d');
+
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Matched Skills', 'Missing Skills'],
+                        datasets: [{
+                            data: [
+                                {{ matched|length }},
+                                {{ missing|length }}
+                            ],
+                            backgroundColor: ['#28a745', '#dc3545']
+                        }]
+                    }
+                });
+            </script>
+
+            <!-- SKILLS -->
+            <div class="row">
+
+                <div class="col-md-6">
+                    <div class="card card-box p-3">
+                        <h6>✅ Matched Skills</h6>
+                        <ul class="list-box">
+                            {% for m in matched %}
+                            <li>{{ m }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card card-box p-3">
+                        <h6>❌ Missing Skills</h6>
+                        <ul class="list-box">
+                            {% for m in missing %}
+                            <li>{{ m }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 💡 AI SUGGESTIONS (ChatGPT STYLE) -->
+            <div class="card card-box p-3 mt-3">
+                <h5>🤖 AI Suggestions</h5>
+                <ul>
+                    {% for s in suggestions %}
+                    <li>{{ s }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <!-- 🧠 SCORE EXPLANATION (NEW) -->
+            {% if explanation %}
+            <div class="card card-box p-3 mt-3">
+                <h5>🧠 Why Your Score is This</h5>
+                <ul>
+                    {% for e in explanation %}
+                    <li>{{ e }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% else %}
+
+            <!-- EMPTY -->
+            <div class="card card-box p-4 text-center">
+                <h5>📂 No Resume Uploaded</h5>
+                <p>Upload a resume to get AI analysis</p>
+            </div>
+
+            {% endif %}
+
+        </div>
     </div>
-    {% endif %}
 
-    <!-- 📊 PIE CHART (NEW ADDITION) -->
-    {% if score is not none %}
-    <div class="card p-4">
-
-        <h4>📊 ATS Skill Analysis Chart</h4>
-
-        <canvas id="atsChart"></canvas>
-
-    </div>
-
-    <script>
-        var ctx = document.getElementById('atsChart').getContext('2d');
-
-        var atsChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: ['Matched Skills', 'Missing Skills'],
-                datasets: [{
-                    data: [
-                        {{ matched|length }},
-                        {{ missing|length }}
-                    ],
-                    backgroundColor: [
-                        '#28a745',
-                        '#dc3545'
-                    ]
-                }]
-            }
-        });
-    </script>
-    {% endif %}
-
-    <!-- RESUME DETAILS -->
+    <!-- FULL RESUME DETAILS -->
     {% if name %}
-    <div class="card p-4">
+    <div class="card card-box p-3 mt-3">
 
-        <h4>📄 Resume Details</h4>
+        <h5>📄 Resume Details</h5>
         <hr>
 
         <p><b>👤 Name:</b> {{ name }}</p>
@@ -153,64 +212,24 @@
 
         <hr>
 
-        <p><b>🎓 Education:</b></p>
-        <p>{{ education }}</p>
-
-        <p><b>💻 Skills:</b></p>
-        <p>{{ skills_section }}</p>
-
-        <p><b>📂 Projects:</b></p>
-        <p>{{ projects }}</p>
-
-        <p><b>📜 Certifications:</b></p>
-        <p>{{ certifications }}</p>
+        <p><b>🎓 Education:</b> {{ education }}</p>
+        <p><b>💻 Skills:</b> {{ skills_section }}</p>
+        <p><b>📂 Projects:</b> {{ projects }}</p>
+        <p><b>📜 Certifications:</b> {{ certifications }}</p>
 
     </div>
     {% endif %}
 
-    <!-- MATCHED SKILLS -->
-    {% if matched %}
-    <div class="card p-3">
-        <h5>✅ Matched Skills</h5>
-        <ul>
-            {% for m in matched %}
-            <li>{{ m }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-
-    <!-- MISSING SKILLS -->
-    {% if missing %}
-    <div class="card p-3">
-        <h5>❌ Missing Skills</h5>
-        <ul>
-            {% for m in missing %}
-            <li>{{ m }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-
-    <!-- SUGGESTIONS -->
-    {% if suggestions %}
-    <div class="card p-3">
-        <h5>💡 Suggestions</h5>
-        <ul>
-            {% for s in suggestions %}
-            <li>{{ s }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-
-    <!-- EXTRACTED TEXT -->
+    <!-- RAW TEXT -->
     {% if resume_text %}
-    <div class="card p-3">
+    <div class="card card-box p-3 mt-3">
+
         <h5>📜 Extracted Resume Text</h5>
-        <div class="resume-box">
+
+        <div class="resume-text">
             {{ resume_text }}
         </div>
+
     </div>
     {% endif %}
 
